@@ -3,6 +3,10 @@ use ethers::{prelude::*, utils::Ganache};
 use std::convert::TryFrom;
 use std::sync::Arc;
 
+// const usdc: Address = "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48".parse::<Address>().unwrap();
+// const wbtc: Address = "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599".parse::<Address>().unwrap();
+
+
 abigen!(
     FlashQuery,
     "FlashBotsUniswapQuery.json"
@@ -16,9 +20,67 @@ struct UniswapV2Pool {
     reserve0: U256,
     reserve1: U256,
 }
+
+impl UniswapV2Pool {
+    fn amount1_out(&self, amount0_in: U256) -> U256 {
+	self.reserve1 * (amount0_in * 997) / (self.reserve0 * 1000 + (amount0_in * 977))
+    }
     
+    fn amount0_out(&self, amount1_in: U256) -> U256 {
+	self.reserve0 * (amount1_in * 997) / (self.reserve1 * 1000 + (amount1_in * 977))
+    }
 
+    // fn token0_decimals(&self) -> u64 {
+    // 	if self.token0 == usdc {
+    // 	    return 6;
+    // 	} if self.token0 == wbtc {
+    // 	    return 8;
+    // 	} else {
+    // 	    return 18;
+    // 	}
+    // }
+    
+    // fn token1_decimals(&self) -> u64 {
+    // 	if self.token0 == usdc {
+    // 	    return 6;
+    // 	} if self.token0 == wbtc {
+    // 	    return 8;
+    // 	} else {
+    // 	    return 18;
+    // 	}
+    // }
 
+    fn copy(&self) -> UniswapV2Pool {
+	return UniswapV2Pool {
+	    token0: self.token0,
+	    token1: self.token1,
+	    pool_addr: self.pool_addr,
+	    reserve0: self.reserve0,
+	    reserve1: self.reserve1
+	};
+	
+    }
+}
+
+fn find_loops(pools: Vec<UniswapV2Pool>) -> Vec<Vec<UniswapV2Pool>> {
+    let mut pool_loops: Vec<Vec<UniswapV2Pool>> = Vec::new();
+    for i in 0..pools.len() {
+	let mut pool_loop: Vec<UniswapV2Pool> = Vec::new();
+	for j in 0..pools.len() {
+	    if pools[i].pool_addr != pools[j].pool_addr && pools[i].token0 == pools[j].token0 || pools[i].token1 == pools[j].token0 || pools[i].token0 == pools[j].token1 || pools[i].token1 == pools[j].token1 {
+
+		    pool_loop.push(pools[i].copy());
+		    pool_loop.push(pools[j].copy());
+		
+	    }
+	}
+	if pool_loop.len() != 0 {
+	    pool_loops.push(pool_loop);
+	}
+    }
+    return pool_loops;
+}
+	    
 #[tokio::main]
 async fn main() -> Result<()>  {
     // let gport = 8555u16;
@@ -46,8 +108,15 @@ async fn main() -> Result<()>  {
     for i in 0..=999 {
 	pool_data.push(UniswapV2Pool {token0: pairs[i][0], token1: pairs[i][1], pool_addr: pairs[i][2], reserve0: reserves[i][0], reserve1: reserves[i][1]});
     }
-    println!("pools {:#?}", pool_data);
-    
-    
+    let pool_loops:Vec<Vec<UniswapV2Pool>> = find_loops(pool_data);
+    for l in pool_loops {
+	println!("{:#?}", l.len());
+    }
+    // // println!("pools {:#?}", pool_data);
+    // let a: u64 = 10;
+    // let o1 = pool_data[0].amount1_out("1000000");
+    // let o0 = pool_data[0].amount0_out();
+    // println!("amount1 out {} amount0 out {}", o1, o0);
+    // println!("pool 0 {:#?}", pool_data[0]);
     Ok(())
 }
